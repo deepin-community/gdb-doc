@@ -1,0 +1,10 @@
+gdb-doc for Debian
+------------------
+
+The .orig tarball for this package is now the upstream GDB source
+tarball; I got tired of reworking debian/sanitize-gdb.sh in the source
+for the gdb package to generate a tarball usable for this package
+every major release.
+
+ -- Samuel Bronson <naesten@gmail.com>, Fri,  9 May 2014 13:31:42 -0400
+
