@@ -1,4 +1,97 @@
 #!/usr/bin/make -f
 
-%:
-	dh $@
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+BUILDDIR = objdir
+DOCDIR = /usr/share/doc/gdb-doc
+
+DH_AUTO_OPTIONS = -B$(BUILDDIR)
+
+# Flags to configure as little as possible
+CONFIGURE_FLAGS = $(shell ls -d */|sed -e 's|\(.*\)/|--disable-\1|'|grep -v gdb)
+CONFIGURE_FLAGS += --without-zlib --without-expat --without-python
+CONFIGURE_FLAGS += --without-lzma --without-tcl --without-x
+CONFIGURE_FLAGS += --without-babeltrace --without-gdbserver
+
+# Let the manual mention this path
+CONFIGURE_FLAGS += --with-system-gdbinit=/etc/gdb/gdbinit
+
+# Need eponymous and "install-" targets in gdb/doc/
+DOCTARGETS = pdf info html man
+
+INSTALLTARGETS = $(patsubst %,install-%,$(DOCTARGETS))
+
+$(BUILDDIR)/config.status: configure
+	dh_testdir
+	dh_auto_configure $(DH_AUTO_OPTIONS) -- $(CONFIGURE_FLAGS)
+
+build: build-arch build-indep
+build-arch:
+build-indep: build-stamp
+
+build-stamp: $(BUILDDIR)/config.status
+	dh_testdir
+	$(MAKE) -C $(BUILDDIR) configure-gdb
+	# "MAKEINFOFLAGS=--no-split" would go on the next line
+	$(MAKE) -C $(BUILDDIR)/gdb/doc $(DOCTARGETS)
+	touch $@
+
+clean: 
+	dh_testdir
+	dh_testroot
+	rm -rf $(BUILDDIR)
+	rm -f build-stamp 
+	dh_clean
+
+install: build
+	dh_testdir
+	dh_testroot
+	dh_prep
+
+	dh_installdirs
+	$(MAKE) -C $(BUILDDIR)/gdb/doc DESTDIR=$(CURDIR)/debian/gdb-doc \
+		docdir=$(DOCDIR) pdfdir=$(DOCDIR)/pdf htmldir=$(DOCDIR)/html \
+		$(INSTALLTARGETS)
+
+	# This manual documents a long-obsolete facility
+	rm -f debian/gdb-doc/usr/share/info/annota*
+	rm -rf debian/gdb-doc/usr/share/doc/gdb-doc/{pdf,html}/annota*
+
+	# This manpage is worse than the outdated one in gdb installs
+	# from its debian/ directory!
+	rm -f debian/gdb-doc/usr/share/man/man1/gcore.*
+
+	# This is just trash left behind by install-info(1)/dh_installinfo(1)
+	rm -f debian/gdb-doc/usr/share/info/dir*
+
+	# Symlink stuff into gdb's doc directory
+	install -d debian/gdb-doc/usr/share/doc/gdb
+	ln -s ../gdb-doc/html debian/gdb-doc/usr/share/doc/gdb/html
+	ln -s ../gdb-doc/pdf debian/gdb-doc/usr/share/doc/gdb/pdf
+
+# Build architecture-independent files here.
+binary-indep: install
+	dh_testdir
+	dh_testroot
+	dh_installdocs
+#	dh_installexamples
+#	dh_install
+	dh_installinfo
+#	dh_lintian
+#	dh_undocumented
+	dh_installchangelogs
+	dh_installman
+	dh_link
+	dh_compress
+	dh_fixperms
+	dh_installdeb
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+
+# Build architecture-dependent files here.
+binary-arch:
+
+binary: binary-indep binary-arch
+.PHONY: build build-indep build-arch clean binary-indep binary-arch binary install
