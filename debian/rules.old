@@ -1,0 +1,56 @@
+#!/usr/bin/make -f
+
+DEB_BUILDDIR = objdir
+
+# This implements the .deb package creation using debhelper.
+include /usr/share/cdbs/1/rules/debhelper.mk
+
+# This implements building using a configure script and Makefile.
+include /usr/share/cdbs/1/class/autotools.mk
+
+# Override to configure as little as possible
+DEB_CONFIGURE_EXTRA_FLAGS = $(shell ls -d */ | sed -e 's|\(.*\)/|--disable-\1|'|grep -v gdb)
+DEB_CONFIGURE_EXTRA_FLAGS += --without-zlib --without-expat --without-python
+DEB_CONFIGURE_EXTRA_FLAGS += --without-lzma --without-tcl --without-x
+DEB_CONFIGURE_EXTRA_FLAGS += --without-babeltrace --without-gdbserver
+
+# Rather paranoid than sorry. Make the shell exit with an error if an
+# untested command fails.
+SHELL += -e
+
+INSTALL = /usr/bin/install -p
+export INSTALL
+
+DEB_MAKE_BUILD_TARGET = all info html pdf
+
+build/gdb-doc:: $(DEB_BUILDDIR)/html $(DEB_BUILDDIR)/pdf
+
+$(DEB_BUILDDIR)/pdf:
+	mkdir $(DEB_BUILDDIR)/pdf
+	mv $(DEB_BUILDDIR)/*.pdf $(DEB_BUILDDIR)/pdf/
+
+$(DEB_BUILDDIR)/html:
+	mkdir $(DEB_BUILDDIR)/html
+	mv $(DEB_BUILDDIR)/gdb $(DEB_BUILDDIR)/html/
+	mv $(DEB_BUILDDIR)/gdbint $(DEB_BUILDDIR)/html/
+	mv $(DEB_BUILDDIR)/stabs $(DEB_BUILDDIR)/html/
+
+common-binary-post-install-indep::
+	rm -f debian/gdb-doc/usr/share/info/annota*
+	rm -f debian/gdb-doc/usr/share/info/dir*
+	install -d debian/gdb-doc/usr/share/doc/gdb
+	ln -s ../gdb-doc/html debian/gdb-doc/usr/share/doc/gdb/html
+	ln -s ../gdb-doc/pdf debian/gdb-doc/usr/share/doc/gdb/pdf
+
+post-patches::
+	if ! test -f gdb/version.in.backup; then \
+	  mv -f gdb/version.in gdb/version.in.backup; \
+	  sed -e 's/$$/-debian/' < gdb/version.in.backup > gdb/version.in; \
+	fi
+	cd gdb/doc && autoreconf
+
+clean::
+	rm -rf $(DEB_BUILDDIR) gdb/doc/configure
+	if test -f gdb/version.in.backup; then \
+	  mv -f gdb/version.in.backup gdb/version.in; \
+	fi
